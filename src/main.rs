@@ -1,4 +1,4 @@
-use crate::{container::{DataContainer, DataContainerImpl}, lsb::extract_lsb_size, wav::WAV};
+use crate::{container::{DataContainer, DataContainerImpl, DATA}, lsb::extract_lsb_size, wav::WAV};
 use clap::Parser;
 
 mod wav;
@@ -30,17 +30,17 @@ struct StegAudioArgs{
     #[arg(long, default_value_t = false)]
     list: bool,
 
-    /// Add file to wav file
-    #[arg(long)]
-    add: Option<String>,
+    /// Add file(s) to wav file
+    #[arg(long, num_args = 0.., value_delimiter = ' ')]
+    add: Option<Vec<String>>,
 
-    /// Remove file from wav
-    #[arg(long)]
-    remove: Option<String>,
+    /// Remove file(s) from wav
+    #[arg(long, num_args = 0.., value_delimiter = ' ')]
+    remove: Option<Vec<String>>,
 
-    /// Extract file from wav
-    #[arg(long)]
-    extract: Option<String>
+    /// Extract file(s) from wav
+    #[arg(long, num_args = 0.., value_delimiter = ' ')]
+    extract: Option<Vec<String>>
 }
 
 fn extract_wav_lsb_data(wav: &WAV, bit_count: usize) -> Vec<u8> {
@@ -91,8 +91,18 @@ fn main() -> Result<()> {
     let mut container: Box<dyn DataContainerImpl> = match args.new {
         0 => {
             let data = extract_wav_lsb_data(&wav, args.bit_count);
+            if data.len() < 8 {
+                return Err(anyhow!("Audio file to small to be container!"));
+            }
 
-            Box::new(DataContainer::try_new(data)?)
+            match data[..8].try_into()? {
+                DATA => {
+                    Box::new(DataContainer::try_new(data)?)
+                }
+                _ => {
+                    return Err(anyhow!("Failed to read data!"));
+                }
+            }
         },
         1 => {
             Box::new(DataContainer::empty(extract_lsb_size(wav.size, args.bit_count)))
@@ -111,32 +121,44 @@ fn main() -> Result<()> {
     }
     if args.add.is_some() {
         let name = args.add.unwrap();
-        println!("Adding {} to container...", name.clone());
-        let bytes = std::fs::read(&name)?;
-        container.add_file(name.clone(), bytes);
-        println!("File {} added successfully!", name);
+        for name in name {
+            println!("Adding {} to container...", name.clone());
+            match std::fs::read(&name) {
+                Ok(bytes) => {
+                    container.add_file(name.clone(), bytes);
+                    println!("File {} added successfully!", name);
+                }
+                Err(err) => {
+                    println!("Failed to add {} to container! Error: {}", name, err);
+                }
+            }
+        }
     }
     if args.extract.is_some() {
         let name = args.extract.unwrap();
-        println!("Extracting {}...", name.clone());
-        let bytes = container.read_file(name.clone());
-        if bytes.is_some() {
-            let bytes = bytes.unwrap();
-            std::fs::write(name.clone(), bytes)?;
-            println!("{} extracted successfully!", name);
-        }
-        else{
-            println!("Failed to extract {}", name);
+        for name in name {
+            println!("Extracting {}...", name.clone());
+            let bytes = container.read_file(name.clone());
+            if bytes.is_some() {
+                let bytes = bytes.unwrap();
+                std::fs::write(name.clone(), bytes)?;
+                println!("{} extracted successfully!", name);
+            }
+            else{
+                println!("Failed to extract {}", name);
+            }
         }
     }
     if args.remove.is_some() {
         let name = args.remove.unwrap();
-        let res = container.remove_file(name.clone());
-        if res.is_some() {
-            println!("Successfully {} removed!", name);
-        }
-        else{
-            println!("Failed to remove {}", name);
+        for name in name {
+            let res = container.remove_file(name.clone());
+            if res.is_some() {
+                println!("Successfully {} removed!", name);
+            }
+            else{
+                println!("Failed to remove {}", name);
+            }
         }
     }
     
@@ -176,7 +198,6 @@ mod tests{
         insert_wav_lsb_data(&wav, bit_count, encoded_bytes).unwrap();
 
         std::fs::write("music.wav", bytes).unwrap();
-        std::fs::remove_file(filename).unwrap();
     }
 
     #[test]
