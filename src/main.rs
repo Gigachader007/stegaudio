@@ -1,10 +1,148 @@
-use crate::wav::WAV;
-
+use crate::{container::{DataContainer, DataContainerImpl}, lsb::extract_lsb_size, wav::WAV};
+use clap::Parser;
 
 mod wav;
 mod lsb;
+mod container;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+use anyhow::{Result,anyhow};
+
+#[derive(Parser, Debug)]
+struct StegAudioArgs{
+    /// Input wav file
+    #[arg(long)]
+    input: String,
+
+    /// Bit count in LSB encoding/decoding
+    #[arg(long, default_value_t = 2)]
+    bit_count: usize,
+
+    /// Create new container inside wav file
+    /// 0 - don't create container
+    /// 1 - create container
+    /// 2 - create container with compression
+    /// 3 - create container with encryption
+    /// 4 - create container with compression and encryption
+    #[arg(long, default_value_t = 0, verbatim_doc_comment)]
+    new: u32,
+
+    /// List files in wav file
+    #[arg(long, default_value_t = false)]
+    list: bool,
+
+    /// Add file to wav file
+    #[arg(long)]
+    add: Option<String>,
+
+    /// Remove file from wav
+    #[arg(long)]
+    remove: Option<String>,
+
+    /// Extract file from wav
+    #[arg(long)]
+    extract: Option<String>
+}
+
+fn extract_wav_lsb_data(wav: &WAV, bit_count: usize) -> Vec<u8> {
+    match wav.data {
+        wav::DataType::U8(ptr) => {
+            lsb::extract_lsb_data(ptr, wav.size, bit_count)
+        },
+        wav::DataType::I16(ptr) => {
+            lsb::extract_lsb_data(ptr, wav.size, bit_count)
+        },
+        wav::DataType::I24(ptr) => {
+            lsb::extract_lsb_data(ptr, wav.size, bit_count)
+        },
+        wav::DataType::I32(ptr) => {
+            lsb::extract_lsb_data(ptr, wav.size, bit_count)
+        },
+        wav::DataType::F32(ptr) => {
+            lsb::extract_lsb_data(ptr, wav.size, bit_count)
+        },
+    }
+}
+fn insert_wav_lsb_data(wav: &WAV, bit_count: usize, insert_data: Vec<u8>) -> Result<()> {
+    match wav.data {
+        wav::DataType::U8(ptr) => {
+            lsb::insert_lsb_data(ptr, wav.size, bit_count, insert_data)
+        },
+        wav::DataType::I16(ptr) => {
+            lsb::insert_lsb_data(ptr, wav.size, bit_count, insert_data)
+        },
+        wav::DataType::I24(ptr) => {
+            lsb::insert_lsb_data(ptr, wav.size, bit_count, insert_data)
+        },
+        wav::DataType::I32(ptr) => {
+            lsb::insert_lsb_data(ptr, wav.size, bit_count, insert_data)
+        },
+        wav::DataType::F32(ptr) => {
+            lsb::insert_lsb_data(ptr, wav.size, bit_count, insert_data)
+        },
+    }
+}
+
+fn main() -> Result<()> {
+    let args = StegAudioArgs::parse();
+
+    let bytes = std::fs::read(args.input.clone())?;
+    let wav = wav::WAV::new(&bytes)?;
+
+    let mut container: Box<dyn DataContainerImpl> = match args.new {
+        0 => {
+            let data = extract_wav_lsb_data(&wav, args.bit_count);
+
+            Box::new(DataContainer::try_new(data)?)
+        },
+        1 => {
+            Box::new(DataContainer::empty(extract_lsb_size(wav.size, args.bit_count)))
+        }
+        _ => {
+            return Err(anyhow!("Invalid new option!"));
+        }
+    };
+
+    if args.list {
+        println!("Files inside container: ");
+        for name in container.list_files() {
+            println!("\t{}", name);
+        }
+        println!();
+    }
+    if args.add.is_some() {
+        let name = args.add.unwrap();
+        println!("Adding {} to container...", name.clone());
+        let bytes = std::fs::read(&name)?;
+        container.add_file(name.clone(), bytes);
+        println!("File {} added successfully!", name);
+    }
+    if args.extract.is_some() {
+        let name = args.extract.unwrap();
+        println!("Extracting {}...", name.clone());
+        let bytes = container.read_file(name.clone());
+        if bytes.is_some() {
+            let bytes = bytes.unwrap();
+            std::fs::write(name.clone(), bytes)?;
+            println!("{} extracted successfully!", name);
+        }
+        else{
+            println!("Failed to extract {}", name);
+        }
+    }
+    if args.remove.is_some() {
+        let name = args.remove.unwrap();
+        let res = container.remove_file(name.clone());
+        if res.is_some() {
+            println!("Successfully {} removed!", name);
+        }
+        else{
+            println!("Failed to remove {}", name);
+        }
+    }
+    
+    insert_wav_lsb_data(&wav, args.bit_count, container.get_data()?)?;
+
+    std::fs::write(args.input, bytes)?;
 
     Ok(())
 }
@@ -15,6 +153,8 @@ mod tests{
 
     use bincode::config;
 
+    use crate::extract_wav_lsb_data;
+    use crate::insert_wav_lsb_data;
     use crate::wav;
     use crate::lsb;
 
@@ -33,23 +173,7 @@ mod tests{
         let mut encoded_bytes = bincode::encode_to_vec(map, config::standard()).unwrap();
         encoded_bytes.resize(lsb::extract_lsb_size(wav.size, bit_count), 0u8);
 
-        match wav.data {
-            wav::DataType::U8(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, encoded_bytes).unwrap();
-            },
-            wav::DataType::I16(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, encoded_bytes).unwrap();
-            },
-            wav::DataType::I24(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, encoded_bytes).unwrap();
-            },
-            wav::DataType::I32(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, encoded_bytes).unwrap();
-            },
-            wav::DataType::F32(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, encoded_bytes).unwrap();
-            },
-        }
+        insert_wav_lsb_data(&wav, bit_count, encoded_bytes).unwrap();
 
         std::fs::write("music.wav", bytes).unwrap();
         std::fs::remove_file(filename).unwrap();
@@ -62,23 +186,7 @@ mod tests{
 
         let bit_count = 2;
         
-        let data = match wav.data {
-            wav::DataType::U8(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-            wav::DataType::I16(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-            wav::DataType::I24(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-            wav::DataType::I32(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-            wav::DataType::F32(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-        };
+        let data = extract_wav_lsb_data(&wav, bit_count);
 
         let (map, size): (HashMap<String, Vec<u8>>, usize) = bincode::decode_from_slice(&data, config::standard()).unwrap();
 
@@ -101,23 +209,7 @@ mod tests{
         let mut clear_data = Vec::<u8>::new();
         clear_data.resize(secret_data_size, 0u8);
 
-        match wav.data {
-            wav::DataType::U8(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, clear_data).unwrap();
-            },
-            wav::DataType::I16(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, clear_data).unwrap();
-            },
-            wav::DataType::I24(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, clear_data).unwrap();
-            },
-            wav::DataType::I32(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, clear_data).unwrap();
-            },
-            wav::DataType::F32(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, clear_data).unwrap();
-            },
-        }
+        insert_wav_lsb_data(&wav, bit_count, clear_data).unwrap();
 
         std::fs::write("music.wav", bytes).unwrap();
     }
@@ -132,23 +224,7 @@ mod tests{
         let mut secret_data = "Super secret text".to_string().as_bytes().to_vec();
         secret_data.resize(lsb::extract_lsb_size(wav.size, bit_count), 0u8);
 
-        match wav.data {
-            wav::DataType::U8(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, secret_data).unwrap();
-            },
-            wav::DataType::I16(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, secret_data).unwrap();
-            },
-            wav::DataType::I24(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, secret_data).unwrap();
-            },
-            wav::DataType::I32(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, secret_data).unwrap();
-            },
-            wav::DataType::F32(ptr) => {
-                lsb::insert_lsb_data(ptr, wav.size, bit_count, secret_data).unwrap();
-            },
-        }
+        insert_wav_lsb_data(&wav, bit_count, secret_data).unwrap();
 
         std::fs::write("music.wav", bytes).unwrap();
     }
@@ -160,23 +236,7 @@ mod tests{
 
         let bit_count = 2;
 
-        let data = match wav.data {
-            wav::DataType::U8(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-            wav::DataType::I16(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-            wav::DataType::I24(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-            wav::DataType::I32(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-            wav::DataType::F32(ptr) => {
-                lsb::extract_lsb_data(ptr, wav.size, bit_count)
-            },
-        };
+        let data = extract_wav_lsb_data(&wav, bit_count);
 
         let string = String::from_utf8_lossy(&data).to_string();
         println!("{}", string);

@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.100"
 bincode = "2.0.1"
+clap_derive = {version = "4.5.41"}
+clap =  {version = "4.5.41", features = ["derive"]}
 serde = {version = "1.0.228", features = ["derive"]}
 
 [profile.dev]
