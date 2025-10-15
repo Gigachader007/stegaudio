@@ -106,7 +106,9 @@ fn main() -> Result<()> {
                 return Err(anyhow!("Audio file to small to be container!"));
             }
 
-            match data[..8].try_into()? {
+            let magic = data[..8].try_into()?;
+
+            match magic {
                 DATA => {
                     Box::new(DataContainer::try_new(data)?)
                 }
