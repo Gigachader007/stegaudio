@@ -13,6 +13,7 @@ rust-lzma = "0.6.0"
 chacha20poly1305 = "0.10.1"
 sha2 = "0.10.9"
 rpassword = "7.4.0"
+pbkdf2 = {version = "0.12.2", features = ["simple"]}
 
 [profile.dev]
 debug-assertions = false

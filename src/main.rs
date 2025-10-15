@@ -133,10 +133,10 @@ fn main() -> Result<()> {
             Box::new(DataContainerLzma::empty(extract_lsb_size(wav.size, args.bit_count)))
         }
         3 => {
-            Box::new(DataContainerXChaCha20Poly1305::empty(extract_lsb_size(wav.size, args.bit_count), let_me_password()?))
+            Box::new(DataContainerXChaCha20Poly1305::empty(extract_lsb_size(wav.size, args.bit_count), let_me_password()?)?)
         }
         4 => {
-            Box::new(DataContainerXChaCha20Poly1305Lzma::empty(extract_lsb_size(wav.size, args.bit_count), let_me_password()?))
+            Box::new(DataContainerXChaCha20Poly1305Lzma::empty(extract_lsb_size(wav.size, args.bit_count), let_me_password()?)?)
         }
         _ => {
             return Err(anyhow!("Invalid new option!"));
