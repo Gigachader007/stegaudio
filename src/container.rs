@@ -66,7 +66,7 @@ impl DataContainerImpl for DataContainerXChaCha20Poly1305Lzma {
         let enc_size_bytes: [u8; std::mem::size_of::<usize>()] = enc_size.to_le_bytes();
 
         let nonce = nonce.to_vec();
-        let res = [&ENC_DATA[..], &nonce[..], &enc_size_bytes[..], &encrypted[..]].concat();
+        let res = [&ENC_LZMA_DATA[..], &nonce[..], &enc_size_bytes[..], &encrypted[..]].concat();
         Ok(res)
     }
 }
