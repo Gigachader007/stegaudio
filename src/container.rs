@@ -51,9 +51,6 @@ impl DataContainerImpl for DataContainerXChaCha20Poly1305Lzma {
         let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng);
 
         let vec = bincode::encode_to_vec(self.map.clone(), config::standard())?;
-        if vec.len() > self.size - 8 - 24 - 8 { // magic + nonce + enc_size
-            return Err(anyhow!("Data is too big to be inserted in container..."));
-        }
 
         let encrypted = self.cipher.encrypt(&nonce, vec.as_ref());
         let encrypted = match encrypted {
@@ -178,9 +175,6 @@ impl DataContainerImpl for DataContainerXChaCha20Poly1305 {
         let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng);
 
         let vec = bincode::encode_to_vec(self.map.clone(), config::standard())?;
-        if vec.len() > self.size - 8 - 24 - 8 { // magic + nonce + enc_size
-            return Err(anyhow!("Data is too big to be inserted in container..."));
-        }
 
         let encrypted = self.cipher.encrypt(&nonce, vec.as_ref());
         let encrypted = match encrypted {
