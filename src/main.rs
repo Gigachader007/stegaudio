@@ -1,4 +1,6 @@
-use crate::{container::{DataContainer, DataContainerImpl, DATA}, lsb::extract_lsb_size, wav::WAV};
+use std::io::Write;
+
+use crate::{container::{DataContainer, DataContainerImpl, DataContainerLzma, DataContainerXChaCha20Poly1305, DataContainerXChaCha20Poly1305Lzma, DATA, ENC_DATA, ENC_LZMA_DATA, LZMA_DATA}, lsb::extract_lsb_size, wav::WAV};
 use clap::Parser;
 
 mod wav;
@@ -82,6 +84,15 @@ fn insert_wav_lsb_data(wav: &WAV, bit_count: usize, insert_data: Vec<u8>) -> Res
     }
 }
 
+fn let_me_password() -> Result<String>{
+    print!("Write password: ");
+    std::io::stdout().flush()?;
+    let mut input_string = String::new();
+    std::io::stdin().read_line(&mut input_string)?;
+    let input_string = input_string.trim_end().to_string();
+    Ok(input_string)
+}
+
 fn main() -> Result<()> {
     let args = StegAudioArgs::parse();
 
@@ -99,6 +110,15 @@ fn main() -> Result<()> {
                 DATA => {
                     Box::new(DataContainer::try_new(data)?)
                 }
+                LZMA_DATA => {
+                    Box::new(DataContainerLzma::try_new(data)?)
+                }
+                ENC_DATA => {
+                    Box::new(DataContainerXChaCha20Poly1305::try_new(data, let_me_password()?)?)
+                }
+                ENC_LZMA_DATA => {
+                    Box::new(DataContainerXChaCha20Poly1305Lzma::try_new(data, let_me_password()?)?)
+                }
                 _ => {
                     return Err(anyhow!("Failed to read data!"));
                 }
@@ -106,6 +126,15 @@ fn main() -> Result<()> {
         },
         1 => {
             Box::new(DataContainer::empty(extract_lsb_size(wav.size, args.bit_count)))
+        }
+        2 => {
+            Box::new(DataContainerLzma::empty(extract_lsb_size(wav.size, args.bit_count)))
+        }
+        3 => {
+            Box::new(DataContainerXChaCha20Poly1305::empty(extract_lsb_size(wav.size, args.bit_count), let_me_password()?))
+        }
+        4 => {
+            Box::new(DataContainerXChaCha20Poly1305Lzma::empty(extract_lsb_size(wav.size, args.bit_count), let_me_password()?))
         }
         _ => {
             return Err(anyhow!("Invalid new option!"));
@@ -125,7 +154,7 @@ fn main() -> Result<()> {
             println!("Adding {} to container...", name.clone());
             match std::fs::read(&name) {
                 Ok(bytes) => {
-                    container.add_file(name.clone(), bytes);
+                    container.add_file(name.clone(), bytes)?;
                     println!("File {} added successfully!", name);
                 }
                 Err(err) => {
