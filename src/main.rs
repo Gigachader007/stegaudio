@@ -87,10 +87,10 @@ fn insert_wav_lsb_data(wav: &WAV, bit_count: usize, insert_data: Vec<u8>) -> Res
 fn let_me_password() -> Result<String>{
     print!("Write password: ");
     std::io::stdout().flush()?;
-    let mut input_string = String::new();
-    std::io::stdin().read_line(&mut input_string)?;
-    let input_string = input_string.trim_end().to_string();
-    Ok(input_string)
+    
+    let password = rpassword::read_password()?;
+
+    Ok(password)
 }
 
 fn main() -> Result<()> {
