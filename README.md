@@ -86,3 +86,10 @@ Extracting text.txt...
 text.txt extracted successfully!
 Successfully text.txt removed!
 ```
+
+## Тесты
+Для запуска тестов достаточно запустить следующую команду.
+
+```bash 
+cargo test
+```
